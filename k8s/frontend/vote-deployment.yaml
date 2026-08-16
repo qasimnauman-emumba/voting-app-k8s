@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
         - name: vote
-          image: votingapp:vote-latest
+          image: qasimnaumane/votingapp:vote-latest
           ports:
             - containerPort: 80
           readinessProbe:

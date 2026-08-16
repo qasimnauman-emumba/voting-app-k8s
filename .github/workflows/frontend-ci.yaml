@@ -2,10 +2,10 @@ name: Build, Push and Deploy Frontend
 on:
     push:
         branches: [ main ]
-        paths:
-            - "vote/**"
-            - "result/**"
-            - "k8s/frontend/**"
+        # paths:
+        #     - "vote/**"
+        #     - "result/**"
+        #     - "k8s/frontend/**"
 
 permissions:
   contents: write

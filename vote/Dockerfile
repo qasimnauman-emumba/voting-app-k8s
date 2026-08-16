@@ -1,6 +1,9 @@
 # base defines a base stage that uses the official python runtime base image
 FROM python:3.11-slim AS base
 
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -m -s /bin/bash appuser
+
 # Add curl for healthcheck
 RUN apt-get update && \
     apt-get install -y --no-install-recommends curl && \
@@ -17,13 +20,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM base AS dev
 RUN pip install watchdog
 ENV FLASK_ENV=development
+USER appuser
 CMD ["python", "app.py"]
 
 # final defines the stage that will bundle the application for production
 FROM base AS final
 
 # Copy our code from the current folder to the working directory inside the container
-COPY . .
+COPY --chown=appuser:appgroup . .
 
 # Make port 80 available for links and/or publish
 EXPOSE 80

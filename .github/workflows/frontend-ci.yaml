@@ -1,0 +1,133 @@
+name: Build, Push and Deploy Frontend
+on:
+    push:
+        branches: [ main ]
+        paths:
+            - "vote/**"
+            - "result/**"
+            - "k8s/frontend/**"
+
+permissions:
+  contents: write
+
+env:
+    DEPLOY_BRANCH: production
+    MANIFEST_ROOT: k8s/frontend
+
+jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+        if: github.actor != 'github-actions[bot]'
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - service: vote
+                      context: ./vote
+                      dockerfile: ./vote/Dockerfile
+                      image_tag: vote-latest
+                      deployment_file: vote-deployment.yaml
+                    - service: result
+                      context: ./result
+                      dockerfile: ./result/Dockerfile
+                      image_tag: result-latest
+                      deployment_file: result-deployment.yaml
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v6
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to Docker Hub
+              uses: docker/login-action@v4
+              with:
+                  registry: docker.io
+                  username: ${{ secrets.DOCKER_USERNAME }}
+                  password: ${{ secrets.DOCKER_PASSWORD }}
+
+            - name: Build and push Docker image
+              uses: docker/build-push-action@v6
+              with:
+                  context: ${{ matrix.context }}
+                  file: ${{ matrix.dockerfile }}
+                  push: true
+                  tags: ${{ secrets.DOCKER_USERNAME }}/votingapp:${{ matrix.image_tag }}
+                  cache-from: type=gha,scope=${{ matrix.service }}
+                  cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+    deploy:
+        needs: build-and-push
+        runs-on: ubuntu-latest
+        if: github.actor != 'github-actions[bot]'
+        concurrency:
+            group: deploy-${{ env.DEPLOY_BRANCH }}
+            cancel-in-progress: false
+        steps:
+            - name: Checkout source branch
+              uses: actions/checkout@v6
+              with:
+                  fetch-depth: 0
+
+            - name: Checkout or create deploy branch
+              run: |
+                  set -euo pipefail
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                  if git ls-remote --exit-code --heads origin "${{ env.DEPLOY_BRANCH }}" >/dev/null 2>&1; then
+                    git fetch origin "${{ env.DEPLOY_BRANCH }}"
+                    git checkout -B "${{ env.DEPLOY_BRANCH }}" "origin/${{ env.DEPLOY_BRANCH }}"
+                  else
+                    echo "Deploy branch '${{ env.DEPLOY_BRANCH }}' does not exist yet, creating it from ${{ github.ref_name }}"
+                    git checkout -B "${{ env.DEPLOY_BRANCH }}"
+                  fi
+
+            - name: Sync YAML manifests from source branch
+              run: |
+                  set -euo pipefail
+                  SOURCE_BRANCH="${{ github.ref_name }}"
+
+                  git fetch --no-tags --depth=1 origin "${SOURCE_BRANCH}"
+
+                  echo "Syncing manifests"
+                  mkdir -p "${{ env.MANIFEST_ROOT }}"
+                  git checkout "origin/${SOURCE_BRANCH}" -- "${{ env.MANIFEST_ROOT }}"
+
+                  git ls-tree -r --name-only HEAD -- "${{ env.MANIFEST_ROOT }}" | grep -E '\.ya?ml$' | sort > /tmp/deploy_yamls.txt || true
+                  git ls-tree -r --name-only "origin/${SOURCE_BRANCH}" -- "${{ env.MANIFEST_ROOT }}" | grep -E '\.ya?ml$' | sort > /tmp/source_yamls.txt || true
+
+                  while IFS= read -r file; do
+                    [ -z "$file" ] && continue
+                    git rm -f "$file"
+                  done < <(comm -23 /tmp/deploy_yamls.txt /tmp/source_yamls.txt)
+
+            - name: Update deployment image tags in deploy branch
+              run: |
+                  set -e
+
+                  update_image () {
+                    local file="$1" tag="$2"
+                    local image="${{ secrets.DOCKER_USERNAME }}/votingapp:${tag}"
+                    echo "Updating ${{ env.MANIFEST_ROOT }}/${file} to ${image}"
+                    sed -i "s|image: .*|image: ${image}|g" "${{ env.MANIFEST_ROOT }}/${file}"
+                    grep 'image:' "${{ env.MANIFEST_ROOT }}/${file}" || true
+                  }
+
+                  update_image "vote-deployment.yaml" "vote-latest"
+                  update_image "result-deployment.yaml" "result-latest"
+
+            - name: Commit and push changes to deploy branch
+              run: |
+                  set -e
+                  git add "${{ env.MANIFEST_ROOT }}"
+
+                  if git diff --cached --quiet; then
+                    echo "No changes to commit"
+                  else
+                    git commit -m "Update frontend deployment images to $(echo ${{ github.sha }} | cut -c1-7)"
+                    git push origin "${{ env.DEPLOY_BRANCH }}"
+                  fi

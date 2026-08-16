@@ -52,7 +52,7 @@ jobs:
         runs-on: ubuntu-latest
         if: github.actor != 'github-actions[bot]'
         concurrency:
-            group: deploy-${{ env.DEPLOY_BRANCH }}
+            group: deploy-production
             cancel-in-progress: false
         steps:
             - name: Checkout source branch

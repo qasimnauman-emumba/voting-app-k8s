@@ -21,6 +21,14 @@ spec:
       containers:
         - name: worker
           image: qasimnaumane/votingapp:worker-latest
+          env:
+            - name: DB_HOST
+              value: db
+          envFrom:
+            - configMapRef:
+                name: postgres-config
+            - secretRef:
+                name: postgres-secret
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

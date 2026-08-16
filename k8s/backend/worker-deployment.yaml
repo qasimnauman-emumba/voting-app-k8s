@@ -20,7 +20,7 @@ spec:
       automountServiceAccountToken: false
       containers:
         - name: worker
-          image: votingapp:worker-latest
+          image: qasimnaumane/votingapp:worker-latest
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

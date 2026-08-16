@@ -2,11 +2,11 @@ name: Build, Push and Deploy Backend
 on:
     push:
         branches: [ main ]
-        # paths:
-        #     - "worker/**"
-        #     - "k8s/backend/**"
-        #     - "k8s/database/**"
-        #     - "k8s/namespace.yaml"
+        paths:
+            - "worker/**"
+            - "k8s/backend/**"
+            - "k8s/database/**"
+            - "k8s/namespace.yaml"
 
 permissions:
   contents: write

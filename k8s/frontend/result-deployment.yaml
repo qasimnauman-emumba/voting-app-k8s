@@ -20,6 +20,14 @@ spec:
       containers:
         - name: result
           image: qasimnaumane/votingapp:result-latest
+          env:
+            - name: DB_HOST
+              value: db
+          envFrom:
+            - configMapRef:
+                name: postgres-config
+            - secretRef:
+                name: postgres-secret
           ports:
             - containerPort: 80
           readinessProbe:

@@ -11,8 +11,6 @@ spec:
     repoURL: https://github.com/qasimnauman-emumba/voting-app-k8s.git
     targetRevision: production
     path: k8s/backend
-    directory:
-      recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: voting-app

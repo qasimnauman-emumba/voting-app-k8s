@@ -1,9 +1,3 @@
-# App-of-apps root. Apply this once to bootstrap everything else:
-#   kubectl apply -f argocd/root-app.yaml
-#
-# It watches argocd/apps/** on the "main" branch and creates/updates the four
-# child Applications below automatically. You don't need to apply the
-# children yourself.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -14,8 +8,6 @@ metadata:
 spec:
   project: default
   source:
-    # Replace with your fork's URL (must be a repo ArgoCD can reach and,
-    # for the CI-driven "production" branch to update, one you can push to).
     repoURL: https://github.com/qasimnauman-emumba/voting-app-k8s.git
     targetRevision: main
     path: argocd/apps
